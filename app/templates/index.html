@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="card">
+  <h2>Your ingredients</h2>
+
+  <form method="post" action="/plan" class="stack">
+    <div id="rows" class="stack">
+      {% include "partials/ingredient_row.html" %}
+    </div>
+
+    <div class="row">
+      <button type="button" hx-post="/row" hx-target="#rows" hx-swap="beforeend">
+        Add row
+      </button>
+      <button type="submit">Generate suggestions</button>
+    </div>
+  </form>
+</section>
+
+{% if ingredients_list %}
+<section class="card">
+  <h3>Entered ingredients</h3>
+  <ul>
+    {% for name, exp in ingredients_list %}
+      <li><strong>{{ name }}</strong>{% if exp %} — use by: {{ exp }}{% endif %}</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Suggestions</h2>
+  {% if suggestions and suggestions|length > 0 %}
+    <ol>
+      {% for s in suggestions %}
+        <li>{{ s }}</li>
+      {% endfor %}
+    </ol>
+  {% else %}
+    <p>No suggestions yet. Add ingredients and submit.</p>
+  {% endif %}
+</section>
+
+{% endblock %}
+
