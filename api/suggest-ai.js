@@ -1,57 +1,42 @@
-module.exports = async function (req, res) {
-  const enabled = (process.env.ENABLE_AI || 'false').toLowerCase() === 'true'
-  if (!enabled) {
-    return res.status(200).json({ ok: false, disabled: true, reason: 'AI disabled' })
-  }
-  const key = process.env.OPENROUTER_API_KEY
-  const base = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1'
-  if (!key) {
-    return res.status(200).json({ ok: false, disabled: true, reason: 'Missing API key' })
-  }
-  try {
-    const body = await readBody(req)
-    const ingredients = Array.isArray(body?.ingredients) ? body.ingredients : []
-    const prompt = `Given this list of ingredients: ${ingredients.join(', ')}, propose 3 simple, budget-friendly recipe ideas (name only).`
-    const r = await fetch(`${base}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${key}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://leftover-chef.vercel.app',
-        'X-Title': 'LeftoverChef'
-      },
-      body: JSON.stringify({
-        model: 'meta-llama/llama-3.1-8b-instruct:free',
-        messages: [
-          { role: 'system', content: 'Be concise. Return only recipe names as a numbered list.' },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.7,
-        max_tokens: 160
-      })
-    })
-    if (!r.ok) {
-      const txt = await safeText(r)
-      return res.status(200).json({ ok: false, error: 'Model error', detail: txt.slice(0,500) })
+export default async function handler(req,res){
+  try{
+    const ENABLE=String(process.env.ENABLE_AI||'false').toLowerCase()==='true'
+    const HF=process.env.HF_TOKEN||''
+    const MODEL=process.env.HF_MODEL||'Qwen/Qwen2.5-1.5B-Instruct'
+    if(!ENABLE||!HF){ return res.status(200).json({disabled:true}) }
+    const body=await readJson(req)
+    const ingredients=Array.isArray(body.ingredients)?body.ingredients.map(x=>String(x||'').trim().toLowerCase()).filter(Boolean):[]
+    const expiries=Array.isArray(body.expiries)?body.expiries.map(x=>String(x||'').trim()):[]
+    const today=new Date().toISOString().slice(0,10)
+    const valid=[]
+    for(let i=0;i<ingredients.length;i++){
+      const n=ingredients[i]
+      const e=expiries[i]||''
+      if(!e || e>=today) valid.push(n)
     }
-    const data = await r.json()
-    const text = data?.choices?.[0]?.message?.content || ''
-    return res.status(200).json({ ok: true, disabled: false, text })
-  } catch {
-    return res.status(200).json({ ok: false, error: 'Unexpected error' })
+    if(valid.length===0){
+      return res.status(200).json({ok:true,text:'All ingredients are outdated or missing. Update dates to get AI suggestions.'})
+    }
+    const extras=['salt','pepper','water','oil','butter']
+    const prompt=`You are a cooking assistant. Using only these ingredients: ${valid.join(', ')} plus pantry basics (${extras.join(', ')}), propose 3 concise recipe ideas with short steps. Do not use expired or any other ingredients. Return plain text bullets.`
+    const r=await fetch(`https://api-inference.huggingface.co/models/${encodeURIComponent(MODEL)}`,{
+      method:'POST',
+      headers:{'Authorization':`Bearer ${HF}`,'Content-Type':'application/json'},
+      body:JSON.stringify({inputs:prompt,parameters:{max_new_tokens:220,temperature:0.7}})
+    })
+    if(!r.ok){
+      const t=await r.text()
+      return res.status(200).json({ok:false,error:'Model error'})
+    }
+    const out=await r.json()
+    const text=Array.isArray(out)&&out[0]&&out[0].generated_text?String(out[0].generated_text): (out.generated_text||'')
+    return res.status(200).json({ok:true,text:text||'No result.'})
+  }catch(e){
+    return res.status(200).json({ok:false,error:'Unexpected error'})
   }
 }
-
-function readBody(req) {
-  return new Promise((resolve) => {
-    let data = ''
-    req.on('data', chunk => { data += chunk })
-    req.on('end', () => {
-      try { resolve(JSON.parse(data || '{}')) } catch { resolve({}) }
-    })
+function readJson(req){
+  return new Promise((resolve,reject)=>{
+    let d='';req.on('data',c=>d+=c);req.on('end',()=>{try{resolve(JSON.parse(d||'{}'))}catch(_){resolve({})}})
   })
-}
-
-async function safeText(r) {
-  try { return await r.text() } catch { return '' }
 }

@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
 
+{% if offline %}
+<div class="banner">Offline mode: using built-in recipes.</div>
+{% endif %}
+
 <section class="card">
   <h2>Your ingredients</h2>
   <form id="ing-form" method="post" action="/plan" class="stack">
@@ -17,6 +21,11 @@
         {% include "partials/ingredient_row.html" %}
       {% endif %}
     </div>
+    <datalist id="common-ingredients">
+      <option value="egg"><option value="eggs"><option value="tomato"><option value="rice">
+      <option value="bread"><option value="garlic"><option value="pasta"><option value="onion">
+      <option value="cheese"><option value="bell pepper"><option value="cucumber"><option value="basil">
+    </datalist>
     <div class="row actions">
       <button type="button" hx-post="/row" hx-target="#rows" hx-swap="beforeend">Add row</button>
       <button type="submit">Generate suggestions</button>
@@ -25,7 +34,7 @@
 </section>
 
 {% if use_first and use_first|length > 0 %}
-<section class="card">
+<section class="card fadein">
   <h3>Use first</h3>
   <ul>
     {% for it in use_first %}
@@ -36,9 +45,9 @@
 {% endif %}
 
 {% if outdated and outdated|length > 0 %}
-<section class="card">
-  <h3>Outdated</h3>
-  <ul>
+<section class="card fadein">
+  <h3>Outdated <span class="tip" tabindex="0">?<span class="tiptext">Expired items are excluded from matching</span></span></h3>
+  <ul class="outdated">
     {% for n,e in outdated %}
       <li><strong>{{ n }}</strong>{% if e %} — expired: {{ e }}{% endif %}</li>
     {% endfor %}
@@ -47,7 +56,7 @@
 </section>
 {% endif %}
 
-<section class="card">
+<section class="card fadein">
   <h2>Suggestions</h2>
   {% if all_outdated %}
     <p>All provided ingredients are outdated. Remove or update dates to see matches.</p>
@@ -62,7 +71,7 @@
   {% endif %}
 </section>
 
-<section class="card">
+<section class="card fadein">
   <h2>Top recipes</h2>
   {% if all_outdated %}
     <p>No recipes because all ingredients are outdated.</p>
@@ -82,7 +91,7 @@
   {% endif %}
 </section>
 
-<section class="card">
+<section class="card fadein">
   <h2>AI suggestions (optional)</h2>
   <div class="row">
     <button type="button" id="ai-btn" onclick="aiSuggest()">Try AI</button>

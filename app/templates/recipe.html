@@ -1,21 +1,17 @@
 {% extends "base.html" %}
 {% block content %}
 
-<section class="card">
+<section class="card fadein">
   <h2>{{ recipe.title }}</h2>
-  <p class="meta">
-    {% if recipe.minutes %}~{{ recipe.minutes }} min{% endif %}
-    {% if recipe.tags and recipe.tags|length %}
-      • <span class="tags">
-        {% for t in recipe.tags %}
-          <span class="tag">{{ t }}</span>
-        {% endfor %}
-      </span>
-    {% endif %}
-  </p>
+  <p class="meta">{% if recipe.minutes %}~{{ recipe.minutes }} min{% endif %}{% if recipe.tags and recipe.tags|length %} • {% for t in recipe.tags %}<span class="tag">{{ t }}</span>{% endfor %}{% endif %}</p>
+  <div class="row actions">
+    <a class="btn" href="/recipe/{{ recipe.id }}/shopping?format=txt">Download .txt</a>
+    <a class="btn" href="/recipe/{{ recipe.id }}/shopping?format=pdf">Download .pdf</a>
+    <a class="btn" href="/">Back</a>
+  </div>
 </section>
 
-<section class="card">
+<section class="card fadein">
   <h3>Ingredients</h3>
   {% if ingredients and ingredients|length > 0 %}
     <ul>
@@ -28,7 +24,7 @@
   {% endif %}
 </section>
 
-<section class="card">
+<section class="card fadein">
   <h3>Directions</h3>
   {% if steps and steps|length > 0 %}
     <ol>
@@ -41,9 +37,4 @@
   {% endif %}
 </section>
 
-<section class="card">
-  <a class="btn" href="/">Back</a>
-</section>
-
 {% endblock %}
-
