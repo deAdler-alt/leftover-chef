@@ -5,7 +5,17 @@
   <h2>Your ingredients</h2>
   <form method="post" action="/plan" class="stack">
     <div id="rows" class="stack">
-      {% include "partials/ingredient_row.html" %}
+      {% if ingredients_list and ingredients_list|length > 0 %}
+        {% for name, exp in ingredients_list %}
+          {% set name_val = name %}
+          {% set expiry_val = exp %}
+          {% include "partials/ingredient_row.html" %}
+        {% endfor %}
+      {% else %}
+        {% set name_val = '' %}
+        {% set expiry_val = '' %}
+        {% include "partials/ingredient_row.html" %}
+      {% endif %}
     </div>
     <div class="row actions">
       <button type="button" hx-post="/row" hx-target="#rows" hx-swap="beforeend">Add row</button>
@@ -42,11 +52,12 @@
   <h2>Top recipes</h2>
   {% if recipes and recipes|length > 0 %}
     <ol>
-      {% for title, directions, sc in recipes %}
+      {% for rec in recipes %}
         <li>
-          <strong>{{ title }}</strong><br>
-          <small>match score: {{ '%.2f'|format(sc) }}</small>
-          <p>{{ directions }}</p>
+          <strong>{{ rec.title }}</strong><br>
+          <small class="meta">match score: {{ '%.2f'|format(rec.score) }}{% if rec.minutes %} • {{ rec.minutes }} min{% endif %}</small>
+          <p>{{ rec.directions }}</p>
+          <a class="btn" href="/recipe/{{ rec.id }}">View details</a>
         </li>
       {% endfor %}
     </ol>

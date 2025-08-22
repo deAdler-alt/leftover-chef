@@ -16,3 +16,6 @@ function aiSuggest(){
     .catch(()=>{out.innerText='Error.'})
     .finally(()=>{btn.disabled=false})
 }
+function removeRow(btn){
+  const row=btn.closest('.row');if(row)row.remove()
+}

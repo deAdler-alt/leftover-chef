@@ -1,5 +1,5 @@
 <div class="row">
-  <input type="text" name="ingredient" placeholder="e.g., eggs, rice, tomatoes" required>
-  <input type="date" name="expiry" placeholder="Expiry date">
+  <input type="text" name="ingredient" placeholder="e.g., eggs, rice, tomatoes" value="{{ name_val|default('') }}" required>
+  <input type="date" name="expiry" placeholder="Expiry date" value="{{ expiry_val|default('') }}">
+  <button type="button" class="ghost" onclick="removeRow(this)">Remove</button>
 </div>
-
