@@ -49,8 +49,14 @@ List = recipe ingredients minus valid items you already have.
 ### Offline
 Without Supabase env the app runs on built-in recipes and shows an offline banner.
 
+### DEMO
+Link: https://leftover-chef-yx9lw353q-deadler-alts-projects.vercel.app/
 
 ## Dev
 /app        FastAPI app, templates and static assets
+
 /api        Vercel functions (Python entry + Node utilities)
+
 vercel.json Routing and function runtimes (Python 3.11, Node 20)
+
+---
