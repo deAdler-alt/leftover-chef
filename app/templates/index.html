@@ -91,11 +91,14 @@
 </section>
 
 <section class="card fadein">
-  <h2>AI suggestions (optional)</h2>
+  <h2>AI suggestions</h2>
   <div class="row">
-    <button type="button" id="ai-btn" onclick="aiSuggest()">Try AI</button>
+    <button type="button" id="ai-local-btn" onclick="aiSuggestLocal()">Local Ideas (free)</button>
+    <button type="button" id="ai-browser-btn" onclick="aiSuggestBrowser()">Browser AI</button>
+    <button type="button" id="ai-btn" onclick="aiSuggest()">Try API</button>
   </div>
   <pre id="ai-out"></pre>
+  <p class="meta">Local Ideas run fully in your browser. No accounts, no downloads.</p>
 </section>
 
 {% endblock %}
