@@ -16,5 +16,3 @@ function aiSuggest(){
     .catch(()=>{out.innerText='Error.'})
     .finally(()=>{btn.disabled=false})
 }
-
-<script src="/static/app.js"></script>

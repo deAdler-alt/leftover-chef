@@ -21,16 +21,33 @@ def normalize(items: List[str]) -> List[str]:
             out.append(s)
     return out
 
+def fallback_suggest(ingredients: List[str]) -> List[Tuple[str, str, float]]:
+    s = set(ingredients)
+    out = []
+    if {"egg", "eggs"} & s:
+        out.append(("Simple Omelette", "Beat eggs with salt and pepper, cook in a pan; optionally add chopped veggies or cheese.", 0.6))
+    if "tomato" in s or "tomatoes" in s:
+        out.append(("Tomato & Egg Shakshuka", "Sauté onion and garlic, add tomatoes and spices, simmer, crack eggs and cook until set.", 0.55))
+    if "rice" in s:
+        out.append(("Veggie Fried Rice", "Cook or use day-old rice. Stir-fry veggies, add rice and soy sauce; push aside and scramble an egg; mix.", 0.5))
+    if "bread" in s and ("tomato" in s or "tomatoes" in s):
+        out.append(("Panzanella Salad", "Toast stale bread, toss with tomatoes, cucumber, onion, olive oil, vinegar, and herbs.", 0.45))
+    if "garlic" in s and "pasta" in s:
+        out.append(("Garlic Olive Oil Pasta (Aglio e Olio)", "Cook pasta. Sauté sliced garlic in oil, add chili flakes, toss pasta and finish with parsley.", 0.4))
+    if not out and s:
+        out.append(("Zero-waste Salad", "Chop available vegetables, add olive oil, lemon or vinegar, salt, pepper, and herbs.", 0.3))
+    return out[:5]
+
 def score_recipes(ingredients: List[str]) -> List[Tuple[str, str, float]]:
     url = os.getenv("SUPABASE_URL", "")
     key = os.getenv("SUPABASE_ANON_KEY", "")
     if not url or not key:
-        return []
+        return fallback_suggest(ingredients)
     try:
         sb = get_client()
         ri = sb.table("recipe_ingredients").select("recipe_id,name").execute()
         if not ri.data:
-            return []
+            return fallback_suggest(ingredients)
         wanted = set(ingredients)
         counts = {}
         for row in ri.data:
@@ -43,7 +60,7 @@ def score_recipes(ingredients: List[str]) -> List[Tuple[str, str, float]]:
             if name in wanted:
                 counts[rid]["match"] += 1
         if not counts:
-            return []
+            return fallback_suggest(ingredients)
         ids = list(counts.keys())
         recs = sb.table("recipes").select("id,title,directions,minutes,tags").in_("id", ids).execute().data
         scored = []
@@ -53,9 +70,11 @@ def score_recipes(ingredients: List[str]) -> List[Tuple[str, str, float]]:
             ease = 1.0 / max(c["total"], 1)
             scored.append((rec["title"], rec["directions"], float(base + 0.15 * ease)))
         scored.sort(key=lambda x: x[2], reverse=True)
+        if not scored:
+            return fallback_suggest(ingredients)
         return scored[:5]
     except Exception:
-        return []
+        return fallback_suggest(ingredients)
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
@@ -96,3 +115,7 @@ def plan(
         "index.html",
         {"request": request, "suggestions": suggestions, "ingredients_list": pairs, "recipes": recipe_scores},
     )
+
+@app.post("/row", response_class=HTMLResponse)
+def row(request: Request):
+    return templates.TemplateResponse("partials/ingredient_row.html", {"request": request})
