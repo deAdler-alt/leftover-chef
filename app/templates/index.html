@@ -42,5 +42,22 @@
   {% endif %}
 </section>
 
+<section class="card">
+  <h2>Top recipes</h2>
+  {% if recipes and recipes|length > 0 %}
+    <ol>
+      {% for title, directions, sc in recipes %}
+        <li>
+          <strong>{{ title }}</strong><br>
+          <small>match score: {{ '%.2f'|format(sc) }}</small>
+          <p>{{ directions }}</p>
+        </li>
+      {% endfor %}
+    </ol>
+  {% else %}
+    <p>No matching recipes yet.</p>
+  {% endif %}
+</section>
+
 {% endblock %}
 

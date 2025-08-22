@@ -1,8 +1,12 @@
+from datetime import date
+from typing import List, Optional, Tuple
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from typing import List, Optional
+from uuid import uuid4
+
+from .supabase_client import get_client
 
 app = FastAPI(title="LeftoverChef")
 
@@ -10,28 +14,61 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
 
-def simple_suggest(ingredients: List[str]) -> List[str]:
-    normalized = {i.strip().lower() for i in ingredients if i and i.strip()}
-    suggestions: List[str] = []
+def normalize(items: List[str]) -> List[str]:
+    out = []
+    for i in items:
+        if not i:
+            continue
+        s = i.strip().lower()
+        if s:
+            out.append(s)
+    return out
 
-    if {"egg", "eggs"} & normalized:
-        suggestions.append("Leftover omelette (eggs + veggies).")
-    if "tomato" in normalized or "tomatoes" in normalized:
-        suggestions.append("Shakshuka with tomatoes and eggs.")
-    if "rice" in normalized:
-        suggestions.append("Fried rice with mixed veggies and soy sauce.")
-    if not suggestions and normalized:
-        suggestions.append("Zero-waste salad: chop everything, add olive oil and herbs.")
-    if not normalized:
-        suggestions.append("Add ingredients to get suggestions.")
-    return suggestions
+
+def score_recipes(ingredients: List[str]) -> List[Tuple[str, str, float]]:
+    sb = get_client()
+    # pobierz wszystkie powiązania składników z przepisami
+    r = sb.table("recipe_ingredients").select("recipe_id,name").execute()
+    if not r.data:
+        return []
+
+    wanted = set(ingredients)
+    counts = {}
+    for row in r.data:
+        rid = row["recipe_id"]
+        name = (row["name"] or "").strip().lower()
+        if not name:
+            continue
+        counts.setdefault(rid, {"match": 0, "total": 0})
+        counts[rid]["total"] += 1
+        if name in wanted:
+            counts[rid]["match"] += 1
+
+    if not counts:
+        return []
+
+    # pobierz tytuły
+    ids = list(counts.keys())
+    recs = sb.table("recipes").select("id,title,directions,minutes,tags").in_("id", ids).execute().data
+
+    scored = []
+    for rec in recs:
+        c = counts.get(rec["id"], {"match": 0, "total": 1})
+        base = c["match"] / max(c["total"], 1)
+        # delikatny boost za krótką listę składników (łatwiej ugotować)
+        ease = 1.0 / max(c["total"], 1)
+        score = base + 0.15 * ease
+        scored.append((rec["title"], rec["directions"], float(score)))
+
+    scored.sort(key=lambda x: x[2], reverse=True)
+    return scored[:5]
 
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     return templates.TemplateResponse(
         "index.html",
-        {"request": request, "suggestions": [], "ingredients_list": []},
+        {"request": request, "suggestions": [], "ingredients_list": [], "recipes": []},
     )
 
 
@@ -41,16 +78,35 @@ def plan(
     ingredient: Optional[List[str]] = Form(default=None),
     expiry: Optional[List[str]] = Form(default=None),
 ):
-    ingredients = ingredient or []
-    suggestions = simple_suggest(ingredients)
-    pairs = list(zip(ingredients, (expiry or [""] * len(ingredients))))
+    names = normalize(ingredient or [])
+    pairs = list(zip(names, (expiry or [""] * len(names))))
+
+    # zapis batcha w submissions (demo)
+    if pairs:
+        sb = get_client()
+        batch_id = str(uuid4())
+        rows = []
+        for n, e in pairs:
+            ed = None
+            if e:
+                try:
+                    ed = date.fromisoformat(e)
+                except Exception:
+                    ed = None
+            rows.append({"batch_id": batch_id, "name": n, "expiry": ed})
+        sb.table("ingredients_submissions").insert(rows).execute()
+
+    # dobór przepisów
+    recipe_scores = score_recipes(names)
+    suggestions = [f"{title}" for title, _dir, _s in recipe_scores]
+
     return templates.TemplateResponse(
         "index.html",
-        {"request": request, "suggestions": suggestions, "ingredients_list": pairs},
+        {
+            "request": request,
+            "suggestions": suggestions or ["Add ingredients to get suggestions."],
+            "ingredients_list": pairs,
+            "recipes": recipe_scores,
+        },
     )
-
-
-@app.post("/row", response_class=HTMLResponse)
-def row(request: Request):
-    return templates.TemplateResponse("partials/ingredient_row.html", {"request": request})
 
