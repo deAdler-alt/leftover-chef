@@ -17,3 +17,4 @@ function aiSuggest(){
     .finally(()=>{btn.disabled=false})
 }
 
+<script src="/static/app.js"></script>
