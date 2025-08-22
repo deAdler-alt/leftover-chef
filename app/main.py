@@ -1,19 +1,12 @@
-from datetime import date, datetime
+from datetime import date
 from typing import List, Optional, Dict, Any, Tuple
 from fastapi import FastAPI, Request, Form
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from uuid import uuid4
 import os
-
-from fastapi.responses import JSONResponse
-
-@app.post("/admin/seed")
-def admin_seed():
-    reset_and_seed_supabase()
-    return JSONResponse({"ok": True})
 
 from .supabase_client import get_client, get_admin_client
 
@@ -21,8 +14,40 @@ app = FastAPI(title="LeftoverChef")
 app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET", "dev-secret"))
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
+BOOT_ID = os.getenv("SESSION_BOOT_ID") or str(uuid4())
 
-INIT_DONE = False
+FALLBACK_MAP = {
+    "fallback-omelette": {
+        "id":"fallback-omelette","title":"Simple Omelette","minutes":10,
+        "directions":"Whisk 3 eggs with salt and pepper. Heat a non-stick pan with a little butter. Pour in the eggs and cook on medium heat, lifting the edges so the uncooked egg flows underneath. Add chopped herbs, cheese or leftover veggies. Fold and serve warm.",
+        "tags":["breakfast","quick"], "keys":["egg","eggs","cheese","bell pepper","onion"]
+    },
+    "fallback-shakshuka": {
+        "id":"fallback-shakshuka","title":"Tomato & Egg Shakshuka","minutes":25,
+        "directions":"Warm olive oil in a skillet. Soften sliced onion and garlic with a pinch of chili. Add crushed tomatoes, salt and a pinch of sugar; simmer until thick. Make small wells and crack in eggs. Cover and cook until whites set and yolks are still soft. Finish with parsley.",
+        "tags":["eggs","tomato"], "keys":["tomato","tomatoes","egg","eggs","onion","garlic"]
+    },
+    "fallback-fried-rice": {
+        "id":"fallback-fried-rice","title":"Veggie Fried Rice","minutes":20,
+        "directions":"Heat oil in a wok. Add diced carrot and peas; stir-fry 2–3 min. Add cold cooked rice, soy sauce and a splash of sesame oil; toss to coat. Push rice aside, scramble an egg, then mix through. Finish with sliced spring onion.",
+        "tags":["rice","stirfry"], "keys":["rice","egg","eggs","carrot","peas","soy sauce","spring onion"]
+    },
+    "fallback-panzanella": {
+        "id":"fallback-panzanella","title":"Panzanella Salad","minutes":15,
+        "directions":"Toast torn stale bread until crisp. Combine chopped tomatoes, cucumber and red onion with olive oil and red wine vinegar. Toss with bread so it soaks up juices. Season and stand 10 min. Scatter with basil.",
+        "tags":["salad","zero-waste"], "keys":["bread","tomato","tomatoes","cucumber","red onion","olive oil","vinegar","basil"]
+    },
+    "fallback-aglio-olio": {
+        "id":"fallback-aglio-olio","title":"Garlic Olive Oil Pasta (Aglio e Olio)","minutes":15,
+        "directions":"Cook spaghetti in salted water. Gently sizzle sliced garlic in olive oil until pale gold; add chili flakes. Toss pasta with some cooking water to emulsify. Finish with parsley and black pepper.",
+        "tags":["pasta"], "keys":["pasta","garlic","olive oil","chili flakes","parsley"]
+    },
+    "fallback-salad": {
+        "id":"fallback-salad","title":"Zero-waste Salad","minutes":10,
+        "directions":"Combine chopped vegetables and herbs. Add olive oil, lemon, salt and pepper. Toss and serve with toasted seeds or croutons.",
+        "tags":["salad"], "keys":["lettuce","cucumber","tomato","pepper","onion","herbs"]
+    }
+}
 
 def parse_iso(s: str) -> Optional[date]:
     try:
@@ -37,6 +62,18 @@ def normalize(items: List[str]) -> List[str]:
         if s:
             out.append(s)
     return out
+
+def split_valid_outdated(pairs: List[Tuple[str, str]]) -> Tuple[List[Tuple[str, str]], List[Tuple[str, str]]]:
+    valid = []
+    outdated = []
+    today = date.today()
+    for n, e in pairs or []:
+        d = parse_iso(e) if e else None
+        if d is not None and d < today:
+            outdated.append((n, e))
+        else:
+            valid.append((n, e))
+    return valid, outdated
 
 def weight_for_expiry(d: Optional[date]) -> float:
     if not d:
@@ -67,21 +104,15 @@ def build_use_first(pairs: List[Tuple[str, str]]) -> List[Dict[str, Any]]:
 def fallback_suggest(ingredients: List[str]) -> List[Dict[str, Any]]:
     s = set(ingredients)
     out = []
-    if {"egg", "eggs"} & s:
-        out.append({"id":"fallback-omelette","title":"Simple Omelette","directions":"Whisk 3 eggs with a pinch of salt and pepper. Heat a non-stick pan with a little butter. Pour in the eggs and cook on medium heat, lifting the edges so the uncooked egg flows underneath. Add chopped herbs, cheese or leftover veggies. Fold and serve warm.","score":0.62,"minutes":10,"tags":["breakfast","quick"]})
-    if "tomato" in s or "tomatoes" in s:
-        out.append({"id":"fallback-shakshuka","title":"Tomato & Egg Shakshuka","directions":"Warm olive oil in a skillet. Soften sliced onion and garlic with a pinch of chili. Add crushed tomatoes, salt and a pinch of sugar; simmer until thick. Make small wells and crack in eggs. Cover and cook until whites set and yolks are still soft. Finish with parsley.","score":0.58,"minutes":25,"tags":["eggs","tomato"]})
-    if "rice" in s:
-        out.append({"id":"fallback-fried-rice","title":"Veggie Fried Rice","directions":"Heat oil in a wok. Add diced carrot and peas; stir-fry 2–3 min. Add cold cooked rice, soy sauce and a splash of sesame oil; toss to coat. Push rice aside, scramble an egg, then mix through. Finish with sliced spring onion.","score":0.54,"minutes":20,"tags":["rice"]})
-    if "bread" in s and ("tomato" in s or "tomatoes" in s):
-        out.append({"id":"fallback-panzanella","title":"Panzanella Salad","directions":"Toast torn stale bread in the oven until crisp. Combine chopped tomatoes, cucumber and red onion with olive oil and red wine vinegar. Toss with bread so it soaks up juices. Season and stand 10 min. Scatter with basil.","score":0.49,"minutes":15,"tags":["salad","zero-waste"]})
-    if "garlic" in s and "pasta" in s:
-        out.append({"id":"fallback-aglio-olio","title":"Garlic Olive Oil Pasta (Aglio e Olio)","directions":"Cook spaghetti in salted water. Gently sizzle sliced garlic in olive oil until pale gold; add chili flakes. Toss pasta with some cooking water to emulsify. Finish with parsley and black pepper.","score":0.45,"minutes":15,"tags":["pasta"]})
+    for rid, r in FALLBACK_MAP.items():
+        if s & set(r["keys"]):
+            out.append({"id":rid,"title":r["title"],"directions":r["directions"],"minutes":r["minutes"],"tags":r["tags"],"score":0.5})
     if not out and s:
-        out.append({"id":"fallback-salad","title":"Zero-waste Salad","directions":"Combine chopped vegetables and herbs. Add olive oil, lemon, salt and pepper. Toss and serve with toasted seeds or croutons.","score":0.35,"minutes":10,"tags":["salad"]})
+        r = FALLBACK_MAP["fallback-salad"]
+        out.append({"id":r["id"],"title":r["title"],"directions":r["directions"],"minutes":r["minutes"],"tags":r["tags"],"score":0.35})
     return out[:5]
 
-def score_with_db(pairs: List[Tuple[str, str]]) -> List[Dict[str, Any]]:
+def score_with_db(valid_pairs: List[Tuple[str, str]]) -> List[Dict[str, Any]]:
     url = os.getenv("SUPABASE_URL", "")
     key = os.getenv("SUPABASE_ANON_KEY", "")
     if not url or not key:
@@ -92,7 +123,7 @@ def score_with_db(pairs: List[Tuple[str, str]]) -> List[Dict[str, Any]]:
         return []
     wmap = {}
     names = []
-    for n, e in pairs or []:
+    for n, e in valid_pairs or []:
         ed = parse_iso(e) if e else None
         w = weight_for_expiry(ed)
         nn = (n or "").strip().lower()
@@ -100,6 +131,8 @@ def score_with_db(pairs: List[Tuple[str, str]]) -> List[Dict[str, Any]]:
             names.append(nn)
             wmap[nn] = max(wmap.get(nn, 1.0), w)
     wanted = set(names)
+    if not wanted:
+        return []
     counts = {}
     for row in ri.data:
         rid = row.get("recipe_id")
@@ -124,18 +157,19 @@ def score_with_db(pairs: List[Tuple[str, str]]) -> List[Dict[str, Any]]:
     out.sort(key=lambda x: x["score"], reverse=True)
     return out[:5]
 
-def score_recipes(pairs: List[Tuple[str, str]]) -> List[Dict[str, Any]]:
+def score_recipes(pairs: List[Tuple[str, str]]) -> Tuple[List[Dict[str, Any]], List[Tuple[str, str]]]:
+    valid, outdated = split_valid_outdated(pairs)
     url = os.getenv("SUPABASE_URL", "")
     key = os.getenv("SUPABASE_ANON_KEY", "")
     if not url or not key:
-        return fallback_suggest([n for n, _ in pairs or []])
+        return fallback_suggest([n for n,_ in valid]), outdated
     try:
-        out = score_with_db(pairs)
+        out = score_with_db(valid)
         if not out:
-            return fallback_suggest([n for n, _ in pairs or []])
-        return out
+            return fallback_suggest([n for n,_ in valid]), outdated
+        return out, outdated
     except Exception:
-        return fallback_suggest([n for n, _ in pairs or []])
+        return fallback_suggest([n for n,_ in valid]), outdated
 
 def set_form_session(request: Request, pairs: List[Tuple[str, str]]) -> None:
     request.session["pairs"] = pairs
@@ -170,50 +204,43 @@ def reset_and_seed_supabase() -> None:
         except Exception:
             pass
         recipes = [
-            {"title":"Simple Omelette","minutes":10,"directions":"Crack eggs into a bowl and whisk with salt and pepper.\nHeat a non-stick pan with butter over medium heat.\nPour in eggs and pull set edges toward the center.\nAdd herbs, cheese or leftover vegetables.\nFold and slide onto a plate.","tags":["breakfast","quick"]},
-            {"title":"Tomato & Egg Shakshuka","minutes":25,"directions":"Warm olive oil in a skillet and add sliced onion.\nStir in garlic and chili and cook until fragrant.\nAdd crushed tomatoes, salt and a pinch of sugar; simmer to thicken.\nMake wells and crack in eggs.\nCover and cook until whites set; garnish with parsley.","tags":["eggs","tomato","skillet"]},
-            {"title":"Veggie Fried Rice","minutes":20,"directions":"Heat oil in a wok and add diced carrot and peas.\nAdd cold rice and toss with soy sauce.\nPush rice to the side; scramble an egg.\nCombine and stir-fry until steamy.\nFinish with spring onion and a splash of sesame oil.","tags":["rice","stirfry"]},
-            {"title":"Panzanella Salad","minutes":15,"directions":"Toast torn stale bread until crisp.\nCombine tomatoes, cucumber, and red onion.\nDress with olive oil and red wine vinegar.\nToss with bread to soak up juices.\nSeason and rest 10 minutes; add basil.","tags":["salad","bread","tomato","zero-waste"]},
-            {"title":"Garlic Olive Oil Pasta (Aglio e Olio)","minutes":15,"directions":"Cook spaghetti in salted water.\nGently sizzle sliced garlic in olive oil.\nAdd chili flakes and a ladle of pasta water.\nToss pasta to emulsify and coat.\nFinish with parsley and black pepper.","tags":["pasta","garlic","quick"]}
+            {"title":FALLBACK_MAP["fallback-omelette"]["title"],"minutes":FALLBACK_MAP["fallback-omelette"]["minutes"],"directions":FALLBACK_MAP["fallback-omelette"]["directions"],"tags":FALLBACK_MAP["fallback-omelette"]["tags"]},
+            {"title":FALLBACK_MAP["fallback-shakshuka"]["title"],"minutes":FALLBACK_MAP["fallback-shakshuka"]["minutes"],"directions":FALLBACK_MAP["fallback-shakshuka"]["directions"],"tags":FALLBACK_MAP["fallback-shakshuka"]["tags"]},
+            {"title":FALLBACK_MAP["fallback-fried-rice"]["title"],"minutes":FALLBACK_MAP["fallback-fried-rice"]["minutes"],"directions":FALLBACK_MAP["fallback-fried-rice"]["directions"],"tags":FALLBACK_MAP["fallback-fried-rice"]["tags"]},
+            {"title":FALLBACK_MAP["fallback-panzanella"]["title"],"minutes":FALLBACK_MAP["fallback-panzanella"]["minutes"],"directions":FALLBACK_MAP["fallback-panzanella"]["directions"],"tags":FALLBACK_MAP["fallback-panzanella"]["tags"]},
+            {"title":FALLBACK_MAP["fallback-aglio-olio"]["title"],"minutes":FALLBACK_MAP["fallback-aglio-olio"]["minutes"],"directions":FALLBACK_MAP["fallback-aglio-olio"]["directions"],"tags":FALLBACK_MAP["fallback-aglio-olio"]["tags"]}
         ]
         sb.table("recipes").insert(recipes).execute()
         rows = sb.table("recipes").select("id,title").in_("title", [r["title"] for r in recipes]).execute().data
         by_title = {r["title"]: r["id"] for r in rows}
-        ing = {
-            "Simple Omelette": ["egg","eggs","cheese","bell pepper","onion"],
-            "Tomato & Egg Shakshuka": ["tomato","tomatoes","egg","eggs","onion","garlic"],
-            "Veggie Fried Rice": ["rice","egg","eggs","carrot","peas","soy sauce","spring onion"],
-            "Panzanella Salad": ["bread","tomato","tomatoes","cucumber","red onion","olive oil","vinegar","basil"],
-            "Garlic Olive Oil Pasta (Aglio e Olio)": ["pasta","garlic","olive oil","chili flakes","parsley"]
-        }
         links = []
-        for t, names in ing.items():
-            rid = by_title.get(t)
-            if not rid:
+        for rid, r in FALLBACK_MAP.items():
+            if rid == "fallback-salad":
                 continue
-            for n in names:
-                links.append({"recipe_id": rid, "name": n})
+            dbid = by_title.get(r["title"])
+            if not dbid:
+                continue
+            for n in r["keys"]:
+                links.append({"recipe_id": dbid, "name": n})
         if links:
             sb.table("recipe_ingredients").insert(links).execute()
     except Exception:
         return
 
-def maybe_init():
-    global INIT_DONE
-    if INIT_DONE:
-        return
-    if os.getenv("RESET_ON_FIRST_HIT", "false").lower() == "true":
-        reset_and_seed_supabase()
-    INIT_DONE = True
+def ensure_boot(request: Request) -> None:
+    if request.session.get("boot") != BOOT_ID:
+        request.session.clear()
+        request.session["boot"] = BOOT_ID
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    maybe_init()
+    ensure_boot(request)
     pairs = get_form_session(request)
+    valid, outdated = split_valid_outdated(pairs)
     use_first = build_use_first(pairs)
     return templates.TemplateResponse(
         "index.html",
-        {"request": request, "suggestions": [], "ingredients_list": pairs, "recipes": [], "use_first": use_first},
+        {"request": request, "suggestions": [], "ingredients_list": pairs, "recipes": [], "use_first": use_first, "outdated": outdated, "all_outdated": bool(pairs and not valid)},
     )
 
 @app.post("/plan", response_class=HTMLResponse)
@@ -222,6 +249,7 @@ def plan(
     ingredient: Optional[List[str]] = Form(default=None),
     expiry: Optional[List[str]] = Form(default=None),
 ):
+    ensure_boot(request)
     names = normalize(ingredient)
     pairs = list(zip(names, (expiry or [""] * len(names))))
     set_form_session(request, pairs)
@@ -238,21 +266,22 @@ def plan(
             sb.table("ingredients_submissions").insert(rows).execute()
         except Exception:
             pass
-    recipe_scores = score_recipes(pairs)
-    suggestions = [r["title"] for r in recipe_scores] or (["Add ingredients to get suggestions."] if not names else [])
+    recipe_scores, outdated = score_recipes(pairs)
+    suggestions = [r["title"] for r in recipe_scores] if recipe_scores else []
     use_first = build_use_first(pairs)
     return templates.TemplateResponse(
         "index.html",
-        {"request": request, "suggestions": suggestions, "ingredients_list": pairs, "recipes": recipe_scores, "use_first": use_first},
+        {"request": request, "suggestions": suggestions, "ingredients_list": pairs, "recipes": recipe_scores, "use_first": use_first, "outdated": outdated, "all_outdated": bool(pairs and not [p for p in pairs if p not in outdated])},
     )
 
 @app.get("/recipe/{rid}", response_class=HTMLResponse)
 def recipe_detail(request: Request, rid: str):
+    ensure_boot(request)
     url = os.getenv("SUPABASE_URL", "")
     key = os.getenv("SUPABASE_ANON_KEY", "")
-    if not url or not key or rid.startswith("fallback-"):
-        recipe = {"title":"Recipe", "minutes":None, "tags":[], "directions":"No extra details available."}
-        return templates.TemplateResponse("recipe.html", {"request": request, "recipe": recipe, "ingredients": [], "steps": []})
+    if rid.startswith("fallback-") or not url or not key:
+        r = FALLBACK_MAP.get(rid) or {"title":"Recipe","minutes":None,"tags":[],"directions":"No extra details available."}
+        return templates.TemplateResponse("recipe.html", {"request": request, "recipe": r, "ingredients": [{"name":k} for k in r.get("keys", [])], "steps": [p.strip() for p in (r.get("directions","").replace("\r\n","\n").split("\n")) if p.strip()]})
     try:
         sb = get_client()
         r = sb.table("recipes").select("id,title,directions,minutes,tags").eq("id", rid).single().execute().data
@@ -264,9 +293,23 @@ def recipe_detail(request: Request, rid: str):
             parts = tmp
         return templates.TemplateResponse("recipe.html", {"request": request, "recipe": r, "ingredients": ing, "steps": parts})
     except Exception:
-        recipe = {"title":"Recipe", "minutes":None, "tags":[], "directions":"No extra details available."}
-        return templates.TemplateResponse("recipe.html", {"request": request, "recipe": recipe, "ingredients": [], "steps": []})
+        r = {"title":"Recipe","minutes":None,"tags":[],"directions":"No extra details available."}
+        return templates.TemplateResponse("recipe.html", {"request": request, "recipe": r, "ingredients": [], "steps": []})
 
 @app.post("/row", response_class=HTMLResponse)
 def row(request: Request):
+    ensure_boot(request)
     return templates.TemplateResponse("partials/ingredient_row.html", {"request": request})
+
+@app.post("/save")
+def save(request: Request, ingredient: Optional[List[str]] = Form(default=None), expiry: Optional[List[str]] = Form(default=None)):
+    ensure_boot(request)
+    names = normalize(ingredient)
+    pairs = list(zip(names, (expiry or [""] * len(names))))
+    set_form_session(request, pairs)
+    return JSONResponse({"ok": True})
+
+@app.post("/admin/seed")
+def admin_seed():
+    reset_and_seed_supabase()
+    return JSONResponse({"ok": True})

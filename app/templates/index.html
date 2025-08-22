@@ -3,7 +3,7 @@
 
 <section class="card">
   <h2>Your ingredients</h2>
-  <form method="post" action="/plan" class="stack">
+  <form id="ing-form" method="post" action="/plan" class="stack">
     <div id="rows" class="stack">
       {% if ingredients_list and ingredients_list|length > 0 %}
         {% for name, exp in ingredients_list %}
@@ -35,9 +35,23 @@
 </section>
 {% endif %}
 
+{% if outdated and outdated|length > 0 %}
+<section class="card">
+  <h3>Outdated</h3>
+  <ul>
+    {% for n,e in outdated %}
+      <li><strong>{{ n }}</strong>{% if e %} — expired: {{ e }}{% endif %}</li>
+    {% endfor %}
+  </ul>
+  <p class="meta">Outdated ingredients are excluded from matching.</p>
+</section>
+{% endif %}
+
 <section class="card">
   <h2>Suggestions</h2>
-  {% if suggestions and suggestions|length > 0 %}
+  {% if all_outdated %}
+    <p>All provided ingredients are outdated. Remove or update dates to see matches.</p>
+  {% elif suggestions and suggestions|length > 0 %}
     <ol>
       {% for s in suggestions %}
         <li>{{ s }}</li>
@@ -50,13 +64,15 @@
 
 <section class="card">
   <h2>Top recipes</h2>
-  {% if recipes and recipes|length > 0 %}
+  {% if all_outdated %}
+    <p>No recipes because all ingredients are outdated.</p>
+  {% elif recipes and recipes|length > 0 %}
     <ol>
       {% for rec in recipes %}
         <li>
           <strong>{{ rec.title }}</strong><br>
           <small class="meta">match score: {{ '%.2f'|format(rec.score) }}{% if rec.minutes %} • {{ rec.minutes }} min{% endif %}</small>
-          <p>{{ rec.directions }}</p>
+          <p>{{ rec.directions[:240] }}{% if rec.directions|length > 240 %}…{% endif %}</p>
           <a class="btn" href="/recipe/{{ rec.id }}">View details</a>
         </li>
       {% endfor %}

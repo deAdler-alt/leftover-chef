@@ -17,5 +17,11 @@ function aiSuggest(){
     .finally(()=>{btn.disabled=false})
 }
 function removeRow(btn){
-  const row=btn.closest('.row');if(row)row.remove()
+  const row=btn.closest('.row');if(row)row.remove();saveForm()
+}
+function saveForm(){
+  const form=document.getElementById('ing-form')
+  if(!form)return
+  const fd=new FormData(form)
+  fetch('/save',{method:'POST',body:fd})
 }
