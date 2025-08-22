@@ -8,6 +8,13 @@ from starlette.middleware.sessions import SessionMiddleware
 from uuid import uuid4
 import os
 
+from fastapi.responses import JSONResponse
+
+@app.post("/admin/seed")
+def admin_seed():
+    reset_and_seed_supabase()
+    return JSONResponse({"ok": True})
+
 from .supabase_client import get_client, get_admin_client
 
 app = FastAPI(title="LeftoverChef")
@@ -148,45 +155,48 @@ def reset_and_seed_supabase() -> None:
     key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
     if not url or not key:
         return
-    sb = get_admin_client()
     try:
-        sb.table("recipe_ingredients").delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
+        sb = get_admin_client()
+        try:
+            sb.table("recipe_ingredients").delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
+        except Exception:
+            pass
+        try:
+            sb.table("ingredients_submissions").delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
+        except Exception:
+            pass
+        try:
+            sb.table("recipes").delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
+        except Exception:
+            pass
+        recipes = [
+            {"title":"Simple Omelette","minutes":10,"directions":"Crack eggs into a bowl and whisk with salt and pepper.\nHeat a non-stick pan with butter over medium heat.\nPour in eggs and pull set edges toward the center.\nAdd herbs, cheese or leftover vegetables.\nFold and slide onto a plate.","tags":["breakfast","quick"]},
+            {"title":"Tomato & Egg Shakshuka","minutes":25,"directions":"Warm olive oil in a skillet and add sliced onion.\nStir in garlic and chili and cook until fragrant.\nAdd crushed tomatoes, salt and a pinch of sugar; simmer to thicken.\nMake wells and crack in eggs.\nCover and cook until whites set; garnish with parsley.","tags":["eggs","tomato","skillet"]},
+            {"title":"Veggie Fried Rice","minutes":20,"directions":"Heat oil in a wok and add diced carrot and peas.\nAdd cold rice and toss with soy sauce.\nPush rice to the side; scramble an egg.\nCombine and stir-fry until steamy.\nFinish with spring onion and a splash of sesame oil.","tags":["rice","stirfry"]},
+            {"title":"Panzanella Salad","minutes":15,"directions":"Toast torn stale bread until crisp.\nCombine tomatoes, cucumber, and red onion.\nDress with olive oil and red wine vinegar.\nToss with bread to soak up juices.\nSeason and rest 10 minutes; add basil.","tags":["salad","bread","tomato","zero-waste"]},
+            {"title":"Garlic Olive Oil Pasta (Aglio e Olio)","minutes":15,"directions":"Cook spaghetti in salted water.\nGently sizzle sliced garlic in olive oil.\nAdd chili flakes and a ladle of pasta water.\nToss pasta to emulsify and coat.\nFinish with parsley and black pepper.","tags":["pasta","garlic","quick"]}
+        ]
+        sb.table("recipes").insert(recipes).execute()
+        rows = sb.table("recipes").select("id,title").in_("title", [r["title"] for r in recipes]).execute().data
+        by_title = {r["title"]: r["id"] for r in rows}
+        ing = {
+            "Simple Omelette": ["egg","eggs","cheese","bell pepper","onion"],
+            "Tomato & Egg Shakshuka": ["tomato","tomatoes","egg","eggs","onion","garlic"],
+            "Veggie Fried Rice": ["rice","egg","eggs","carrot","peas","soy sauce","spring onion"],
+            "Panzanella Salad": ["bread","tomato","tomatoes","cucumber","red onion","olive oil","vinegar","basil"],
+            "Garlic Olive Oil Pasta (Aglio e Olio)": ["pasta","garlic","olive oil","chili flakes","parsley"]
+        }
+        links = []
+        for t, names in ing.items():
+            rid = by_title.get(t)
+            if not rid:
+                continue
+            for n in names:
+                links.append({"recipe_id": rid, "name": n})
+        if links:
+            sb.table("recipe_ingredients").insert(links).execute()
     except Exception:
-        pass
-    try:
-        sb.table("ingredients_submissions").delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
-    except Exception:
-        pass
-    try:
-        sb.table("recipes").delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
-    except Exception:
-        pass
-    recipes = [
-        {"title":"Simple Omelette","minutes":10,"directions":"Crack eggs into a bowl and whisk with salt and pepper.\nHeat a non-stick pan with butter over medium heat.\nPour in eggs and pull set edges toward the center.\nAdd herbs, cheese or leftover vegetables.\nFold and slide onto a plate.","tags":["breakfast","quick"]},
-        {"title":"Tomato & Egg Shakshuka","minutes":25,"directions":"Warm olive oil in a skillet and add sliced onion.\nStir in garlic and chili and cook until fragrant.\nAdd crushed tomatoes, salt and a pinch of sugar; simmer to thicken.\nMake wells and crack in eggs.\nCover and cook until whites set; garnish with parsley.","tags":["eggs","tomato","skillet"]},
-        {"title":"Veggie Fried Rice","minutes":20,"directions":"Heat oil in a wok and add diced carrot and peas.\nAdd cold rice and toss with soy sauce.\nPush rice to the side; scramble an egg.\nCombine and stir-fry until steamy.\nFinish with spring onion and a splash of sesame oil.","tags":["rice","stirfry"]},
-        {"title":"Panzanella Salad","minutes":15,"directions":"Toast torn stale bread until crisp.\nCombine tomatoes, cucumber, and red onion.\nDress with olive oil and red wine vinegar.\nToss with bread to soak up juices.\nSeason and rest 10 minutes; add basil.","tags":["salad","bread","tomato","zero-waste"]},
-        {"title":"Garlic Olive Oil Pasta (Aglio e Olio)","minutes":15,"directions":"Cook spaghetti in salted water.\nGently sizzle sliced garlic in olive oil.\nAdd chili flakes and a ladle of pasta water.\nToss pasta to emulsify and coat.\nFinish with parsley and black pepper.","tags":["pasta","garlic","quick"]}
-    ]
-    sb.table("recipes").insert(recipes).execute()
-    rows = sb.table("recipes").select("id,title").in_("title", [r["title"] for r in recipes]).execute().data
-    by_title = {r["title"]: r["id"] for r in rows}
-    ing = {
-        "Simple Omelette": ["egg","eggs","cheese","bell pepper","onion"],
-        "Tomato & Egg Shakshuka": ["tomato","tomatoes","egg","eggs","onion","garlic"],
-        "Veggie Fried Rice": ["rice","egg","eggs","carrot","peas","soy sauce","spring onion"],
-        "Panzanella Salad": ["bread","tomato","tomatoes","cucumber","red onion","olive oil","vinegar","basil"],
-        "Garlic Olive Oil Pasta (Aglio e Olio)": ["pasta","garlic","olive oil","chili flakes","parsley"]
-    }
-    links = []
-    for t, names in ing.items():
-        rid = by_title.get(t)
-        if not rid:
-            continue
-        for n in names:
-            links.append({"recipe_id": rid, "name": n})
-    if links:
-        sb.table("recipe_ingredients").insert(links).execute()
+        return
 
 def maybe_init():
     global INIT_DONE
