@@ -24,12 +24,12 @@
   </form>
 </section>
 
-{% if ingredients_list %}
+{% if use_first and use_first|length > 0 %}
 <section class="card">
-  <h3>Entered ingredients</h3>
+  <h3>Use first</h3>
   <ul>
-    {% for name, exp in ingredients_list %}
-      <li><strong>{{ name }}</strong>{% if exp %} — use by: {{ exp }}{% endif %}</li>
+    {% for it in use_first %}
+      <li><strong>{{ it.name }}</strong>{% if it.expiry %} — use by: {{ it.expiry }}{% endif %}</li>
     {% endfor %}
   </ul>
 </section>
