@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>LeftoverChef</title>
-    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
     <script src="https://unpkg.com/htmx.org@2.0.3"></script>
   </head>
   <body>
@@ -15,6 +15,6 @@
     <main class="container">
       {% block content %}{% endblock %}
     </main>
-    <script src="/static/app.js"></script>
+    <script src="{{ url_for('static', path='app.js') }}"></script>
   </body>
 </html>
