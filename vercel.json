@@ -1,8 +1,6 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
-  "functions": {
-    "api/index.py": { "runtime": "vercel-python@3.11", "maxDuration": 10, "memory": 1024 }
-  },
   "rewrites": [
     { "source": "/api/suggest-ai", "destination": "/api/suggest-ai.js" },
     { "source": "/api/extract", "destination": "/api/extract.js" },
@@ -10,4 +8,3 @@
     { "source": "/(.*)", "destination": "/api/index.py" }
   ]
 }
-
