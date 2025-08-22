@@ -351,5 +351,60 @@ def save(request: Request, ingredient: Optional[List[str]] = Form(default=None),
 
 @app.post("/admin/seed")
 def admin_seed():
+    if os.getenv("ALLOW_SEED", "false").lower() != "true":
+        return JSONResponse({"ok": False}, status_code=403)
     reset_and_seed_supabase()
     return JSONResponse({"ok": True})
+
+
+from fastapi import Body
+import httpx
+import json
+
+def env_list(s: str) -> list[str]:
+    return [x.strip() for x in (s or "").split(",") if x.strip()]
+
+@app.post("/api/suggest-ai")
+async def suggest_ai_local(payload: dict = Body(default=None)):
+    enable = str(os.getenv("ENABLE_AI","false")).lower() == "true"
+    hf = os.getenv("HF_TOKEN","")
+    if not enable or not hf:
+        return JSONResponse({"disabled": True})
+    body = payload or {}
+    ing = [str(x or "").strip().lower() for x in (body.get("ingredients") or []) if str(x or "").strip()]
+    exp = [str(x or "").strip() for x in (body.get("expiries") or [])]
+    today = date.today().isoformat()
+    valid = []
+    for i, n in enumerate(ing):
+        e = exp[i] if i < len(exp) else ""
+        if (not e) or (e >= today):
+            valid.append(n)
+    if not valid:
+        return JSONResponse({"ok": True, "text": "All ingredients are outdated or missing. Update dates to get AI suggestions."})
+    extras = ["salt","pepper","water","oil","butter","flour","sugar","vinegar","soy sauce"]
+    prompt = f"You are a cooking assistant. Using only these ingredients: {', '.join(valid)} plus pantry basics ({', '.join(extras)}), propose exactly 3 concise recipe ideas. For each: a title and 3-5 short steps. Do not add other ingredients. Return plain text bullets."
+    candidates = env_list(os.getenv("HF_MODELS","")) or [
+        "Qwen/Qwen2.5-1.5B-Instruct",
+        "Qwen/Qwen2-1.5B-Instruct",
+        "microsoft/Phi-4-mini-instruct",
+        "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        "Qwen/Qwen2.5-0.5B-Instruct",
+    ]
+    async with httpx.AsyncClient(timeout=30) as client:
+        for model in candidates:
+            url = f"https://api-inference.huggingface.co/models/{model}"
+            r = await client.post(url, headers={"Authorization": f"Bearer {hf}"}, json={"inputs": prompt, "parameters": {"max_new_tokens": 250, "temperature": 0.7, "return_full_text": False}})
+            if r.status_code in (202,503):
+                continue
+            if r.status_code == 429:
+                return JSONResponse({"ok": False, "error": "Rate limited, please retry."})
+            if r.status_code != 200:
+                continue
+            out = r.json()
+            if isinstance(out, list):
+                text = str((out[0] or {}).get("generated_text") or (out[0] or {}).get("summary_text") or "").strip()
+            else:
+                text = str(out.get("generated_text") or out.get("summary_text") or "").strip()
+            if text:
+                return JSONResponse({"ok": True, "model": model, "text": text})
+    return JSONResponse({"ok": False, "error": "No model responded. Try again."})

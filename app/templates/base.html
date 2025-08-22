@@ -1,20 +1,33 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>LeftoverChef</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
-    <script src="https://unpkg.com/htmx.org@2.0.3"></script>
-  </head>
-  <body>
-    <header class="container">
-      <h1>LeftoverChef</h1>
-      <p>Zero-waste meal planner</p>
-    </header>
-    <main class="container">
-      {% block content %}{% endblock %}
-    </main>
-    <script src="{{ url_for('static', path='app.js') }}"></script>
-  </body>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LeftoverChef</title>
+<link rel="stylesheet" href="/static/styles.css">
+<script src="https://unpkg.com/htmx.org@1.9.12"></script>
+<script defer src="/static/app.js"></script>
+</head>
+<body>
+<div class="hero">
+  <div class="hero__glow"></div>
+  <header class="header container">
+    <a class="brand" href="/">LeftoverChef</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="https://github.com" target="_blank" rel="noreferrer">GitHub</a>
+    </nav>
+  </header>
+  <div class="hero__copy container">
+    <h1>Cook smarter, waste less</h1>
+    <p>Plan meals from what you already have. Rank recipes, export shopping lists, optional AI ideas.</p>
+  </div>
+</div>
+<main class="container">
+  {% block content %}{% endblock %}
+</main>
+<footer class="container footer">
+  <span>© LeftoverChef</span>
+</footer>
+</body>
 </html>

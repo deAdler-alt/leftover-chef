@@ -52,7 +52,6 @@
       <li><strong>{{ n }}</strong>{% if e %} — expired: {{ e }}{% endif %}</li>
     {% endfor %}
   </ul>
-  <p class="meta">Outdated ingredients are excluded from matching.</p>
 </section>
 {% endif %}
 
@@ -76,16 +75,16 @@
   {% if all_outdated %}
     <p>No recipes because all ingredients are outdated.</p>
   {% elif recipes and recipes|length > 0 %}
-    <ol>
+    <div class="grid">
       {% for rec in recipes %}
-        <li>
-          <strong>{{ rec.title }}</strong><br>
-          <small class="meta">match score: {{ '%.2f'|format(rec.score) }}{% if rec.minutes %} • {{ rec.minutes }} min{% endif %}</small>
-          <p>{{ rec.directions[:240] }}{% if rec.directions|length > 240 %}…{% endif %}</p>
-          <a class="btn" href="/recipe/{{ rec.id }}">View details</a>
-        </li>
+        <article class="tile">
+          <h4>{{ rec.title }}</h4>
+          <p class="meta">match {{ '%.2f'|format(rec.score) }}{% if rec.minutes %} • {{ rec.minutes }} min{% endif %}</p>
+          <p>{{ rec.directions[:180] }}{% if rec.directions|length > 180 %}…{% endif %}</p>
+          <a class="btn" href="/recipe/{{ rec.id }}">View</a>
+        </article>
       {% endfor %}
-    </ol>
+    </div>
   {% else %}
     <p>No matching recipes yet.</p>
   {% endif %}
