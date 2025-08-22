@@ -3,16 +3,12 @@
 
 <section class="card">
   <h2>Your ingredients</h2>
-
   <form method="post" action="/plan" class="stack">
     <div id="rows" class="stack">
       {% include "partials/ingredient_row.html" %}
     </div>
-
     <div class="row">
-      <button type="button" hx-post="/row" hx-target="#rows" hx-swap="beforeend">
-        Add row
-      </button>
+      <button type="button" hx-post="/row" hx-target="#rows" hx-swap="beforeend">Add row</button>
       <button type="submit">Generate suggestions</button>
     </div>
   </form>
@@ -43,21 +39,11 @@
 </section>
 
 <section class="card">
-  <h2>Top recipes</h2>
-  {% if recipes and recipes|length > 0 %}
-    <ol>
-      {% for title, directions, sc in recipes %}
-        <li>
-          <strong>{{ title }}</strong><br>
-          <small>match score: {{ '%.2f'|format(sc) }}</small>
-          <p>{{ directions }}</p>
-        </li>
-      {% endfor %}
-    </ol>
-  {% else %}
-    <p>No matching recipes yet.</p>
-  {% endif %}
+  <h2>AI suggestions (optional)</h2>
+  <div class="row">
+    <button type="button" id="ai-btn" onclick="aiSuggest()">Try AI</button>
+  </div>
+  <pre id="ai-out"></pre>
 </section>
 
 {% endblock %}
-

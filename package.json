@@ -1,0 +1,9 @@
+{
+  "name": "leftover-chef",
+  "private": true,
+  "version": "0.1.0",
+  "dependencies": {
+    "node-html-parser": "^6.1.11"
+  }
+}
+
